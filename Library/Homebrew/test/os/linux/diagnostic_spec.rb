@@ -44,7 +44,7 @@ RSpec.describe Homebrew::Diagnostic::Checks do
   specify "#check_for_installed_developer_tools explains system build tools" do
     allow(DevelopmentTools).to receive(:installed?).and_return(false)
 
-    expect(checks.check_for_installed_developer_tools)
+    expect(checks.check_for_installed_developer_tools&.to_s)
       .to include(
         "No developer tools installed.",
         "Install a system C compiler and the standard development tools",

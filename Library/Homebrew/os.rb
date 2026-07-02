@@ -135,4 +135,9 @@ module OS
   def self.not_tier_one_configuration?
     !defined?(OS::ISSUES_URL)
   end
+
+  sig { returns(T.nilable(String)) }
+  def self.issues_url
+    defined?(OS::ISSUES_URL) ? OS::ISSUES_URL : nil
+  end
 end

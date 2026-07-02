@@ -14,8 +14,9 @@ RSpec.describe Homebrew::Diagnostic::Checks do
   specify "#check_for_installed_developer_tools uses installation instructions" do
     allow(DevelopmentTools).to receive_messages(installed?: false, installation_instructions: "Install build tools.")
 
-    expect(checks.check_for_installed_developer_tools).to eq <<~EOS
+    expect(checks.check_for_installed_developer_tools&.to_s).to eq <<~EOS.rstrip
       No developer tools installed.
+
       Install build tools.
     EOS
   end
@@ -246,6 +247,7 @@ RSpec.describe Homebrew::Diagnostic::Checks do
 
   specify "#check_for_nix_homebrew" do
     stub_const("HOMEBREW_REPOSITORY", HOMEBREW_PREFIX/"Library/.homebrew-is-managed-by-nix")
+    allow(OS).to receive(:issues_url).and_return("https://github.com/zhaofengli/nix-homebrew/issues")
 
     expect(checks.check_for_nix_homebrew&.to_s)
       .to include("This is a Tier 3 configuration", "https://github.com/zhaofengli/nix-homebrew/issues")
