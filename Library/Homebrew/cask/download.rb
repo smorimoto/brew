@@ -5,7 +5,9 @@ require "downloadable"
 require "fileutils"
 require "unpack_strategy"
 require "cask/cache"
+require "cask/caskroom"
 require "cask/quarantine"
+require "cask/utils"
 
 module Cask
   # A download corresponding to a {Cask}.
@@ -138,6 +140,58 @@ module Cask
         odebug "Renaming #{rename_operation.from} to #{rename_operation.to}"
         rename_operation.perform_rename(target_dir)
       end
+    end
+
+    sig { returns(Pathname) }
+    def staged_path_from_download_queue
+      HOMEBREW_TEMP/"caskroom"/cask.staged_path.relative_path_from(Caskroom.path)
+    end
+
+    sig { returns(Pathname) }
+    def staged_path_from_download_queue_marker
+      Pathname("#{staged_path_from_download_queue}.staged")
+    end
+
+    sig { params(command: T.class_of(SystemCommand)).void }
+    def purge_staged_from_download_queue(command: SystemCommand)
+      staged_marker = staged_path_from_download_queue_marker
+      FileUtils.rm(staged_marker) if staged_marker.symlink? || staged_marker.exist?
+
+      staged_path = staged_path_from_download_queue
+      return unless staged_path.exist?
+
+      Utils.gain_permissions_remove(staged_path, command:)
+      staged_path.parent.rmdir_if_possible
+    end
+
+    sig { override.params(download: Pathname, pour: T::Boolean).returns(T::Boolean) }
+    def stage_from_download_queue?(download, pour:)
+      return false unless pour
+      return false if cask.staged_path.exist? || staged_path_from_download_queue_marker.exist?
+
+      cask.download ||= download
+      primary_container.dependencies.all? do |dependency|
+        case dependency
+        when Formula
+          dependency.any_version_installed? && dependency.optlinked?
+        when Cask
+          dependency.installed?
+        end
+      end
+    end
+
+    sig { override.params(download: Pathname, pour: T::Boolean).void }
+    def stage_from_download_queue(download, pour:)
+      return unless stage_from_download_queue?(download, pour:)
+
+      purge_staged_from_download_queue
+      cask.download ||= download
+      extract_primary_container(to: staged_path_from_download_queue, verbose: false)
+      process_rename_operations(target_dir: staged_path_from_download_queue)
+      FileUtils.ln_s(staged_path_from_download_queue, staged_path_from_download_queue_marker)
+    rescue
+      purge_staged_from_download_queue
+      raise
     end
 
     sig { override.returns(T::Boolean) }
